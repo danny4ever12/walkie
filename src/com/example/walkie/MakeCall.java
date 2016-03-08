@@ -32,7 +32,6 @@ import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.View;
-import android.widget.ListView;
 import android.widget.Toast;
 
 public class MakeCall extends Activity implements TextToSpeech.OnInitListener,IpAddress {
@@ -46,7 +45,7 @@ public class MakeCall extends Activity implements TextToSpeech.OnInitListener,Ip
 
 	private Timer timer;
 	
-	private ListView wordsList;
+	
 	String ph;
 	
 	long phonenum=0;
@@ -156,7 +155,7 @@ public class MakeCall extends Activity implements TextToSpeech.OnInitListener,Ip
 					int hour = c.get(Calendar.HOUR);
 					int minute = c.get(Calendar.MINUTE);
 
-					if(Calendar.AM_PM==Calendar.AM)
+					if(Calendar.AM_PM == Calendar.AM)
 					{
 						speakOut("The time is " + hour + " " + minute+"A M");
 						
