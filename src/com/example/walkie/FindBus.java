@@ -1,6 +1,6 @@
 package com.example.walkie;
 
-import java.io.IOException;
+import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -8,8 +8,6 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
@@ -20,30 +18,51 @@ import org.json.JSONObject;
 import com.example.walkie.R;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.location.Address;
-import android.location.Geocoder;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
-public class FindBus extends Activity implements TextToSpeech.OnInitListener,
-		IpAddress {
+public class FindBus extends Activity implements TextToSpeech.OnInitListener {
 
 	protected static final int RESULT_SPEECH = 1;// Speech code for activity
 	private TextToSpeech tts;
 	boolean speechflag = false;
-
-	private Timer timer;
+	
+	
+	SharedPreferences myshare;
+	Editor myedit;
+	//for json connect
+    JSONParser jsonParser = new JSONParser();
+	private static final String TAG_SUCCESS = "success";
+	private static final String TAG_PRODUCT = "product";
+	private static final String TAG_VEHICLE_ID = "vehicleId";
+	private static final String SOURCE = "source";
+	private static final String DESTINATION = "destination";
+	private static final String TAG_LOCATION = "current_location";	
+	private static final String TAG_LATITUDE = "latitude";
+	private static final String TAG_LONGITUDE = "longitude";
+	
 	
 	String percentage = "";// battery percentage
 	Calendar c;
@@ -55,6 +74,17 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		
+		StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+
+		StrictMode.setThreadPolicy(policy); 
+		
+		
+        myshare=PreferenceManager.getDefaultSharedPreferences(FindBus.this);
+		
+		myedit=myshare.edit();
+		
+		
 		/**
 		 * Adding text to speech
 		 */
@@ -141,13 +171,22 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 					Toast.makeText(this, "" + percentage, Toast.LENGTH_LONG)
 							.show();
 					speakOut(percentage);
-				} else if ((speechtext.trim().equals("my inbox"))
+				} 
+
+				/**
+				 * inbox
+				 */
+				else if ((speechtext.trim().equals("my inbox"))
 						|| (speechtext.trim().equals("inbox"))) {
 					Intent myint = new Intent(this, InboxActivity.class);
 					finish();
 					startActivity(myint);
 
-				} else if (speechtext.trim().equals("time")
+				} 
+				/**
+				 * time
+				 */
+				else if (speechtext.trim().equals("time")
 						|| speechtext.trim().equals("time ")) {
 
 					int hour = c.get(Calendar.HOUR);
@@ -160,7 +199,12 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 						speakOut("The time is " + hour + " " + minute + "P M");
 					}
 
-				} else if (speechtext.trim().equals("date")) {
+				} 
+				
+				/**
+				 * date
+				 */
+				else if (speechtext.trim().equals("date")) {
 
 					int day = c.get(Calendar.DAY_OF_MONTH);
 					int month = c.get(Calendar.MONTH);
@@ -170,117 +214,223 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 
 					speakOut("The date is " + day + monthstr + year);
 
-				} else if ((speechtext.trim().equals("make a call"))
+				} 
+				
+				/**
+				 * voice call
+				 */
+				else if ((speechtext.trim().equals("make a call"))
 						|| (speechtext.trim().equals("make call"))
 						|| (speechtext.trim().equals("call"))) {
 					speakOut("Tell the number or name");
 
-					//FOR DELAY
-					timer = new Timer();
-					timer.scheduleAtFixedRate(new TimerTask() {
-					            @Override
-					            public void run() {
-					                //Generate number
-					            }
-					        }, 5000, 5000);
-					Intent callint = new Intent(FindBus.this,
-							MakeCall.class);
-					finish();
-					startActivity(callint);
+					new Handler().postDelayed(new Runnable() {
+	                      @Override
+	                      public void run() {
+	                    	  Intent callint = new Intent(FindBus.this,
+	      							MakeCall.class);
+	      					  finish();
+	      					  startActivity(callint);
+	                        
+	                      }
+	                  }, 3000);
+					
 
-				} else if (speechtext.trim().equals("bus route")
+				} 
+				
+				/**
+				 * bus route
+				 */
+				else if (speechtext.trim().equals("bus route")
 						|| speechtext.trim().equals("bus route ")) {
-					// call webservice
+					
+					
+String loc=GpsLocation.cityName;
+					
+					
+					Log.e("current_location",loc );
+					
+					List<NameValuePair> params = new ArrayList<NameValuePair>();
+					
+					params.add(new BasicNameValuePair("current_location",  loc));
+					
+				
+					// getting JSON Object
+					// Note that create product url accepts POST method
+					String url_check="http://"+myshare.getString("ipaddress", "")+"/walkie/busesInLocation.php";
+					JSONObject json = jsonParser.makeHttpRequest(url_check,
+							"GET", params);
+					
+					// check log cat fro response
+					Log.d("Create Response", json.toString());
+					
+					
+					
+					
+					
+					
+					try {
+						// check for success tag
+						int success = json.getInt(TAG_SUCCESS);
 
-					WebServer web = new WebServer();
-
-					List<NameValuePair> mylist = new ArrayList<NameValuePair>(2);
-					mylist.add(new BasicNameValuePair("latitude", ""
-							+ GpsLocation.lat));
-					mylist.add(new BasicNameValuePair("longitude", ""
-							+ GpsLocation.log));
-
-					ja = web.doPost(
-							mylist,
-							"http://"
-									+ ip
-									+ ":8084/Walkie_Talkie/getbusdetails.jsp");
-					if (ja != null) {
-
-						try {
-							JSONObject jo = ja.getJSONObject(0);
-
-							if (jo.getString("resp").equals("success")) {
-
-								String name = jo.getString("vehicle_name");
-								String source = jo.getString("source");
-								String destination = jo
-										.getString("destination");
-								tts.setSpeechRate(0.6f);
-
-								speakOut("Bus name is" + name + "going to "
-										+ destination + " from " + source);
-
-							} else {
-								speakOut("No nearby bus");
-							}
-
-						} catch (JSONException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
+						if (success == 1) {
+							Log.d("ivide ethi","breakpoint");
+							
+							// successfully received product details
+							JSONArray productObj = json
+									.getJSONArray(TAG_PRODUCT); // JSON Array
+							
+							// get first product object from JSON Array
+							JSONObject product = productObj.getJSONObject(0);
+							String vehicle=product.getString(TAG_VEHICLE_ID);
+							String source=product.getString(SOURCE);
+							String destination=product.getString(DESTINATION);
+							String latstr=product.getString(TAG_LATITUDE);
+							String longstr=product.getString(TAG_LONGITUDE);
+						
+							
+							double lat1=GpsLocation.lat;
+							double log1=GpsLocation.log;
+							
+							//converting string to double
+							double lat2 = Double.parseDouble(latstr);
+							double log2 = Double.parseDouble(longstr);
+							
+							//calling calculate distance function
+							double resultloc=distance(lat1, log1, lat2, log2, "K");
+							
+							//TRUNCATE RESULT DISTANCE
+							Double truncresultloc = new BigDecimal(resultloc)
+						    .setScale(5, BigDecimal.ROUND_HALF_UP)
+						    .doubleValue();
+							
+							Double truncresultlocMetres=truncresultloc*1000;
+							/**
+							 * calculating time to reach
+							 * bus speed-10 km/hr
+							 * time=distance/speed
+							 * in minutes... *60
+							 */
+							Double timeToReach=(truncresultloc/10)*60;
+							
+							//TRUNCATE RESULT TIME
+							Double truncresulttime = new BigDecimal(timeToReach)
+						    .setScale(4, BigDecimal.ROUND_HALF_UP)
+						    .doubleValue();
+							
+							
+							Log.e("vehicleid...", ""+vehicle+".....SOURCE"+source+".....destination"+destination+"...distance"+truncresultloc+"");
+																
+							
+                            tts.setSpeechRate(0.6f);
+							
+							speakOut("Bus number is"+vehicle+"going to "+destination+" from "+source+"   Bus is  "+truncresultlocMetres+"  meters from your location    Bus will reach your location in   "+truncresulttime+"   minutes ");		        
+							     
+							
+							
+						} else {
+							
+							speakOut("No nearby bus");	
 						}
-
-					} else {
-						speakOut("No nearby bus");
+					} catch (JSONException e) {
+						e.printStackTrace();
+						
 					}
+					
 
+					
 				}
 
 				else if (speechtext.trim().equals("find bus")
 						|| speechtext.trim().equals("find bus ")) {
 
-					speakOut("Speak out the bus number");					
-					Intent findbusint=new Intent(FindBus.this, FindBus.class);
-					startActivity(findbusint);
+					speakOut("Speak out the bus number");	
+					
+					new Handler().postDelayed(new Runnable() {
+	                      @Override
+	                      public void run() {
+	                    	  Intent findbusint=new Intent(FindBus.this, FindBus.class);
+	      					  startActivity(findbusint);
+	                         
+	                      }
+	                  }, 3000);
+					
 
 				}
 
+				/**
+				 * help: app codes 
+				 */
 				else if (speechtext.trim().equals("help")) {
 
 					speakOut("the keywords used are my battery make a call mylocation  my inbox my contacts find bus and  bus route");
 
-				} else if ((speechtext.trim().equals("help my location"))
+				}
+				/**
+				 * location
+				 */
+				else if ((speechtext.trim().equals("help my location"))
 						|| (speechtext.trim().equals("help location"))) {
 					speakOut("Speak out my location to get your current location details");
 
-				} else if ((speechtext.trim().equals("help my battery"))
+				} 
+				/**
+				 * battery
+				 */
+				else if ((speechtext.trim().equals("help my battery"))
 						|| (speechtext.trim().equals("help battery"))) {
 					speakOut("Speak out my battery or battery to get your current battery level");
 
-				} else if ((speechtext.trim().equals("help my inbox"))
+				} 
+				/**
+				 * inbox
+				 */
+				else if ((speechtext.trim().equals("help my inbox"))
 						|| (speechtext.trim().equals("help inbox"))) {
 					speakOut("Speak out my inbox or inbox to read your incoming messages");
 
-				} else if ((speechtext.trim().equals("help my contacts"))
+				} 
+				/**
+				 * contacts
+				 */
+				else if ((speechtext.trim().equals("help my contacts"))
 						|| (speechtext.trim().equals("help contacts"))) {
 					speakOut("Speak out my contacts or contacts to access your contacts");
 
-				} else if ((speechtext.trim().equals("help make a call"))
+				} 
+				/**
+				 * voice call
+				 */
+				else if ((speechtext.trim().equals("help make a call"))
 						|| (speechtext.trim().equals("help make call"))
 						|| (speechtext.trim().equals("help call"))) {
 					speakOut("Speak out make a call or make call or call to make a call");
 
-				} else if ((speechtext.trim().equals("help find bus"))) {
+				} 
+				
+				/**
+				 *find bus 
+				 */
+				else if ((speechtext.trim().equals("help find bus"))) {
 					speakOut("Speak out find bus to find location of a bus");
 
-				} else if (speechtext.trim().equals("help bus route")) {
+				} 
+				
+				/**
+				 * bus route
+				 */
+				else if (speechtext.trim().equals("help bus route")) {
 					speakOut("Speak out bus route to read a bus route");
 
-				} else if ((speechtext.trim().equalsIgnoreCase("walkie talkie"))
+				} 
+				/**
+				 * about app
+				 */
+				else if ((speechtext.trim().equalsIgnoreCase("walkie talkie"))
 						|| (speechtext.trim()
 								.equalsIgnoreCase("walkie torquay"))
 						|| (speechtext.trim().equalsIgnoreCase("walkie"))) {
-					speakOut("You are using walkie torquay App developed by team IPSR An userfriendly application for blind people");
+					speakOut("You are using walkie torquay App developed by team CEC. A userfriendly application for blind people");
 
 				}
 
@@ -294,8 +444,12 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 					String ph=(speechtext.trim());
 					Log.i("string num",ph);
 					
+					
+					/**
 					String str = ph.replaceAll("\\s+",""); 
 					Log.i("string num after replacing",str);
+					
+					
 					
 					long phonenum = 0;
 				
@@ -304,84 +458,104 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 						
 						String str1 = ph.replaceAll("\\s+","_"); 
 						//tts.setSpeechRate(0.6f);
-		
-						WebServer web=new WebServer();
-						List<NameValuePair> mylist = new ArrayList<NameValuePair>(1);
+		             **/
+		            
+					   
+					 
+				
+					   
+					  
+					   
+					   List<NameValuePair> params = new ArrayList<NameValuePair>();
 						
-						mylist.add(new BasicNameValuePair("busnum", ""
-								+ phonenum));
+					   params.add(new BasicNameValuePair("vehicleId", ph));
+					  
 					
-
-						ja = web.doPost(
-								mylist,
-								"http://"
-										+ ip
-										+ ":8080/WalkieTalkie/webservice-user/findbus.jsp");
+					
+						// getting JSON Object
+						// Note that create product url accepts POST method
+						String url_check="http://"+myshare.getString("ipaddress", "")+"/walkie/bus_finder.php";
+						JSONObject json = jsonParser.makeHttpRequest(url_check,
+								"GET", params);
 						
-						if(ja!=null)
-						{
-							String location;
-							
-							try {
-								JSONObject jo=ja.getJSONObject(0);
-								
-								if(jo.getString("resp").equals("success"))
-								{
-								
-								
-								String lat=jo.getString("latitude");
-								String lon=jo.getString("longitude");
-								
-								double latitude=Double.parseDouble(lat);
-								double longitude=Double.parseDouble(lon);
-								
-								try {
-									Geocoder geocoder;
-									List<Address> addresses;
-									geocoder = new Geocoder(FindBus.this, Locale.getDefault());
-									Log.i("LatLong",""+latitude+longitude);
-									addresses = geocoder.getFromLocation(latitude, longitude, 1);
-									if (addresses.size() > 0) {
-										String address = addresses.get(0).getAddressLine(0);
-										String city = addresses.get(0).getAddressLine(1);
-										String country = addresses.get(0).getAddressLine(2);
-										location = address + city;
-										Toast.makeText(FindBus.this, ""+location, 5000).show();
-										speakOut("Bus is now at"+location);
-										
-										
-									} else {
-										Log.i("msg", "soryy geocoder error");
-										
-										speakOut("Bus not Located.Please try again");
-									}
-									
-									
+						// check log cat fro response
+						Log.d("Create Response", json.toString());
+						
+						try {
+							// check for success tag
+							int success = json.getInt(TAG_SUCCESS);
 
-								} catch (IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-									speakOut("Bus not Located.Please try again");
-								}
-								}
-								else
-								{
-									speakOut("Bus not Located.Please try again");
-									
-								}
+							if (success == 1) {
+								Log.d("ivide ethi","breakpoint");
 								
-							} catch (JSONException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-								speakOut("Bus not Located.Please try again");
+								// successfully received product details
+								JSONArray productObj = json
+										.getJSONArray(TAG_PRODUCT); // JSON Array
+								
+								// get first product object from JSON Array
+								JSONObject product = productObj.getJSONObject(0);
+								String curr_loc=product.getString(TAG_LOCATION);
+								String getlat=product.getString(TAG_LATITUDE);
+								String getlon=product.getString(TAG_LONGITUDE);
+								
+							
+								
+								Log.e("current location", ""+curr_loc+"...latitude"+getlat+"...longitude"+getlon);
+																	
+								
+								
+								  Double lat1=GpsLocation.lat;
+								  Double lon1=GpsLocation.log;
+								  Double lat2=Double.parseDouble(getlat);
+								  Double lon2=Double.parseDouble(getlon);
+								
+								
+								//calling calculate distance function
+									double resultloc=distance(lat1, lon1, lat2, lon2, "K");
+									
+									//TRUNCATE RESULT DISTANCE
+									Double truncresultloc = new BigDecimal(resultloc)
+								    .setScale(5, BigDecimal.ROUND_HALF_UP)
+								    .doubleValue();
+									
+									
+									Double truncresultlocMetres=truncresultloc*1000;
+									/**
+									 * calculating time to reach
+									 * bus speed-10 km/hr
+									 * time=distance/speed
+									 * in minutes... *60
+									 */
+									Double timeToReach=(truncresultloc/10)*60;
+									
+									//TRUNCATE RESULT TIME
+									Double truncresulttime = new BigDecimal(timeToReach)
+								    .setScale(4, BigDecimal.ROUND_HALF_UP)
+								    .doubleValue();
+								  
+								
+								
+								
+								
+	                            tts.setSpeechRate(0.6f);
+								
+								speakOut("bus has reached "+curr_loc+"  You are "+truncresultlocMetres+" meters away from the bus. Bus will reach you in"+truncresulttime+" minutes");		        
+								     
+								
+								
+							} else {
+								
+								speakOut("Bus not Located.Please try again");	
 							}
+						} catch (JSONException e) {
+							e.printStackTrace();
 							
 						}
-						else
-						{
-							
-							speakOut("Please try again");
-						}
+						
+						
+						
+						
+					   
 						
 						
 					
@@ -480,6 +654,87 @@ public class FindBus extends Activity implements TextToSpeech.OnInitListener,
 		return formatter.format(calendar.getTime());
 	}
 
+	
+	/**
+	 * for calculating distance between two locations 
+	 * @author loco
+	 *
+	 */
+	private static double distance(double lat1, double lon1, double lat2, double lon2, String unit) {
+		double theta = lon1 - lon2;
+		double dist = Math.sin(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(deg2rad(theta));
+		dist = Math.acos(dist);
+		dist = rad2deg(dist);
+		dist = dist * 60 * 1.1515;
+		if (unit == "K") {
+			dist = dist * 1.609344;
+		} else if (unit == "N") {
+			dist = dist * 0.8684;
+		}
+
+		return (dist);
+	}
+
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	/*::	This function converts decimal degrees to radians						 :*/
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	private static double deg2rad(double deg) {
+		return (deg * Math.PI / 180.0);
+	}
+
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	/*::	This function converts radians to decimal degrees						 :*/
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	private static double rad2deg(double rad) {
+		return (rad * 180 / Math.PI);
+	}
+	
+	
+	
+	@Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+    	// TODO Auto-generated method stub
+    	menu.add("Set IP");
+		return true;
+    }
+    @Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		// TODO Auto-generated method stub
+		String title=item.getTitle().toString();
+		if(title.equals("Set IP"))
+		{
+			final Dialog dialog = new Dialog(this);
+			dialog.setTitle("Specify IP");
+			dialog.setContentView(R.layout.ipdialog);
+			dialog.show();
+			Button b1 = (Button) dialog.findViewById(R.id.ipsubmitButton);
+			Button b2 = (Button) dialog.findViewById(R.id.ipcancelButton);
+			final EditText ipEdit = (EditText) dialog.findViewById(R.id.ipaddressET);
+			b1.setOnClickListener(new OnClickListener() {
+
+				public void onClick(View v) {
+					// TODO Auto-generated method stub
+					String ipaddrress=ipEdit.getText().toString();
+					//ipaddrress=ipaddrress;
+					myedit.putString("ipaddress", ipaddrress);
+					myedit.commit();
+					dialog.dismiss();
+				}
+			});
+			b2.setOnClickListener(new OnClickListener() {
+
+				public void onClick(View v) {
+					// TODO Auto-generated method stub
+					dialog.dismiss();
+				}
+			});
+		}
+		return true;
+	}
+	
+	
+	
+	
 	@Override
 	public void onDestroy() {
 		// Don't forget to shutdown!

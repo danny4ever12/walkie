@@ -1,9 +1,7 @@
 package com.example.walkie;
 
-public interface IpAddress {
+public class IpAddress  {
 	
-	//public static final String ip="192.168.1.8";
-	public static final String ip="192.168.1.6";
-	
-
+	String ip="http://192.168.0.14/walkie";
 }
+

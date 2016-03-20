@@ -1,5 +1,6 @@
 package com.example.walkie;
 
+import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -7,8 +8,6 @@ import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
@@ -19,6 +18,7 @@ import org.json.JSONObject;
 import com.example.walkie.R;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -26,21 +26,31 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.database.Cursor;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.provider.Contacts;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
 @SuppressWarnings("deprecation")
 public class InboxActivity extends Activity implements
-		TextToSpeech.OnInitListener,IpAddress {
+		TextToSpeech.OnInitListener{
 	/**
 	 * Text to speech variables
 	 */
@@ -49,7 +59,18 @@ public class InboxActivity extends Activity implements
 	protected static final int RESULT_SPEECH = 1;// Speech code for activity
 
 	
-	private Timer timer;
+	SharedPreferences myshare;
+	Editor myedit;
+	//for json connect
+    JSONParser jsonParser = new JSONParser();
+	private static final String TAG_SUCCESS = "success";
+	private static final String TAG_PRODUCT = "product";
+	private static final String TAG_VEHICLE_ID = "vehicleId";
+	private static final String SOURCE = "source";
+	private static final String DESTINATION = "destination";
+	private static final String TAG_LATITUDE = "latitude";
+	private static final String TAG_LONGITUDE = "longitude";
+	
 	
 	/**
 	 * Inbox message variables
@@ -69,6 +90,20 @@ public class InboxActivity extends Activity implements
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		
+		
+		
+		StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+
+		StrictMode.setThreadPolicy(policy); 
+		
+		
+        myshare=PreferenceManager.getDefaultSharedPreferences(InboxActivity.this);
+		
+		myedit=myshare.edit();
+		
+		
+		
 		contentResolver = getContentResolver();
 		tts = new TextToSpeech(this, this);
 		tts.setSpeechRate(0.6f);
@@ -161,7 +196,11 @@ public class InboxActivity extends Activity implements
 					startActivity(myint);
 					finish();
 
-				} else if (speechtext.trim().equals("time")) {
+				} 
+				/**
+				 * TIME
+				 */
+				else if (speechtext.trim().equals("time")) {
 
 					int hour = c.get(Calendar.HOUR);
 					int minute = c.get(Calendar.MINUTE);
@@ -175,57 +214,117 @@ public class InboxActivity extends Activity implements
 					{
 						speakOut("The time is " + hour + " " + minute + "P M");
 					}
-				}else if(speechtext.trim().equals("bus route"))
+				}
+				
+				/**
+				 * BUS ROUTES
+				 */
+				else if(speechtext.trim().equals("bus route"))
 				{
 					
-						WebServer web=new WebServer();
+String loc=GpsLocation.cityName;
 					
-					List<NameValuePair> mylist = new ArrayList<NameValuePair>(2);
-					mylist.add(new BasicNameValuePair("latitude", "" + GpsLocation.lat));
-					mylist.add(new BasicNameValuePair("longitude", "" + GpsLocation.log));
+					
+					Log.e("current_location",loc );
+					
+					List<NameValuePair> params = new ArrayList<NameValuePair>();
+					
+					params.add(new BasicNameValuePair("current_location",  loc));
+					
+				
+					// getting JSON Object
+					// Note that create product url accepts POST method
+					String url_check="http://"+myshare.getString("ipaddress", "")+"/walkie/busesInLocation.php";
+					JSONObject json = jsonParser.makeHttpRequest(url_check,
+							"GET", params);
+					
+					// check log cat fro response
+					Log.d("Create Response", json.toString());
+					
+					
+					
+					
+					
+					
+					try {
+						// check for success tag
+						int success = json.getInt(TAG_SUCCESS);
 
-					ja=web.doPost(mylist, "http://"+ip+":8084/Walkie_Talkie/getbusdetails.jsp");
-					if(ja!=null)
-					{
+						if (success == 1) {
+							Log.d("ivide ethi","breakpoint");
+							
+							// successfully received product details
+							JSONArray productObj = json
+									.getJSONArray(TAG_PRODUCT); // JSON Array
+							
+							// get first product object from JSON Array
+							JSONObject product = productObj.getJSONObject(0);
+							String vehicle=product.getString(TAG_VEHICLE_ID);
+							String source=product.getString(SOURCE);
+							String destination=product.getString(DESTINATION);
+							String latstr=product.getString(TAG_LATITUDE);
+							String longstr=product.getString(TAG_LONGITUDE);
 						
-						try {
-							JSONObject jo=ja.getJSONObject(0);
 							
-							if(jo.getString("resp").equals("success"))
-							{
+							double lat1=GpsLocation.lat;
+							double log1=GpsLocation.log;
 							
-							String name=jo.getString("vehicle_name");
-							String source=jo.getString("source");
-							String destination=jo.getString("destination");
-							tts.setSpeechRate(0.6f);
+							//converting string to double
+							double lat2 = Double.parseDouble(latstr);
+							double log2 = Double.parseDouble(longstr);
 							
-							speakOut("Bus name is"+name+"going to "+destination+" from "+source);
+							//calling calculate distance function
+							double resultloc=distance(lat1, log1, lat2, log2, "K");
 							
-							}
-							else
-							{
-								speakOut("No nearby bus");	
-							}
+							//TRUNCATE RESULT DISTANCE
+							Double truncresultloc = new BigDecimal(resultloc)
+						    .setScale(5, BigDecimal.ROUND_HALF_UP)
+						    .doubleValue();
 							
 							
-						} catch (JSONException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
+							Double truncresultlocMetres=truncresultloc*1000;
+							
+							/**
+							 * calculating time to reach
+							 * bus speed-10 km/hr
+							 * time=distance/speed
+							 * in minutes... *60
+							 */
+							Double timeToReach=(truncresultloc/10)*60;
+							
+							//TRUNCATE RESULT TIME
+							Double truncresulttime = new BigDecimal(timeToReach)
+						    .setScale(4, BigDecimal.ROUND_HALF_UP)
+						    .doubleValue();
+							
+							
+							Log.e("vehicleid...", ""+vehicle+".....SOURCE"+source+".....destination"+destination+"...distance"+truncresultloc+"");
+																
+							
+                            tts.setSpeechRate(0.6f);
+							
+							speakOut("Bus number is"+vehicle+"going to "+destination+" from "+source+"   Bus is  "+truncresultlocMetres+"  meters from your location    Bus will reach your location in   "+truncresulttime+"   minutes ");		        
+							     
+							
+							
+						} else {
+							
+							speakOut("No nearby bus");	
 						}
-						
-						
+					} catch (JSONException e) {
+						e.printStackTrace();
 						
 					}
-					else
-					{
-						speakOut("No nearby bus");
-					}
+					
+
 					
 				}
 				
 				
 				
-				
+				/**
+				 * DATE
+				 */
 				
 				
 				else if (speechtext.trim().equals("date")) {
@@ -238,30 +337,64 @@ public class InboxActivity extends Activity implements
 
 					speakOut("The date is " + day + monthstr + year);
 
-				} else if ((speechtext.trim().equals("make a call"))
+				} 
+				
+				/**
+				 * voice call
+				 */
+				else if ((speechtext.trim().equals("make a call"))
 						|| (speechtext.trim().equals("make call"))
 						|| (speechtext.trim().equals("call"))) {
 
 					speakOut("Tell the number or name");
 
-					//FOR DELAY
-					timer = new Timer();
-					timer.scheduleAtFixedRate(new TimerTask() {
-					            @Override
-					            public void run() {
-					                //Generate number
-					            }
-					        }, 5000, 5000);
+					new Handler().postDelayed(new Runnable() {
+	                      @Override
+	                      public void run() {
+	                    	  Intent callint = new Intent(InboxActivity.this,
+	      							MakeCall.class);
+	      					  startActivity(callint);
+	      				      finish();
+	                      }
+	                  }, 5000);
 					
-					Intent callint = new Intent(InboxActivity.this,
-							MakeCall.class);
-					startActivity(callint);
+					
 
-				} else if (speechtext.trim().equals("help")) {
+				} 
+				/**
+				 * FIND PARTICULAR BUS
+				 */
+				
+				else if (speechtext.trim().equals("find bus")
+						|| speechtext.trim().equals("find bus ")) {
+
+					speakOut("Speak out the bus number");	
+					
+					new Handler().postDelayed(new Runnable() {
+	                      @Override
+	                      public void run() {
+	                    	  Intent findbusint=new Intent(InboxActivity.this, FindBus.class);
+	      					  startActivity(findbusint);
+	                        
+	                      }
+	                  }, 3000);
+					
+
+				}
+				
+				
+				/**
+				 * help:app codes
+				 */
+				else if (speechtext.trim().equals("help")) {
 
 					speakOut("the keywords used are my battery make a call mylocation  my inbox  my contacts  find bus and  bus route");
 
-				} else if ((speechtext.trim().equals("help my location"))
+				} 
+				/**
+				 * location
+				 */
+				else if ((speechtext.trim().equals("help my location"))
 						|| (speechtext.trim().equals("help location"))) {
 					speakOut("Speak out my location to get your current location details");
 
@@ -292,7 +425,7 @@ public class InboxActivity extends Activity implements
 						|| (speechtext.trim()
 								.equalsIgnoreCase("walkie torquay"))
 						|| (speechtext.trim().equalsIgnoreCase("walkie"))) {
-					speakOut("You are using walkie torquay App developed by team Adhoc An userfriendly application for blind people");
+					speakOut("You are using walkie torquay App developed by team CEC An userfriendly application for blind people");
 				} else if (speechtext.trim().equalsIgnoreCase("next")) {
 
 					getUnreadInboxMessages();
@@ -495,6 +628,89 @@ public class InboxActivity extends Activity implements
 		return formatter.format(calendar.getTime());
 	}
 
+	
+	/**
+	 * for calculating distance between two locations 
+	 * @author loco
+	 *
+	 */
+	private static double distance(double lat1, double lon1, double lat2, double lon2, String unit) {
+		double theta = lon1 - lon2;
+		double dist = Math.sin(deg2rad(lat1)) * Math.sin(deg2rad(lat2)) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.cos(deg2rad(theta));
+		dist = Math.acos(dist);
+		dist = rad2deg(dist);
+		dist = dist * 60 * 1.1515;
+		if (unit == "K") {
+			dist = dist * 1.609344;
+		} else if (unit == "N") {
+			dist = dist * 0.8684;
+		}
+
+		return (dist);
+	}
+
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	/*::	This function converts decimal degrees to radians						 :*/
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	private static double deg2rad(double deg) {
+		return (deg * Math.PI / 180.0);
+	}
+
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	/*::	This function converts radians to decimal degrees						 :*/
+	/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+	private static double rad2deg(double rad) {
+		return (rad * 180 / Math.PI);
+	}
+	
+	
+	
+	
+	@Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+    	// TODO Auto-generated method stub
+    	menu.add("Set IP");
+		return true;
+    }
+    @Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		// TODO Auto-generated method stub
+		String title=item.getTitle().toString();
+		if(title.equals("Set IP"))
+		{
+			final Dialog dialog = new Dialog(this);
+			dialog.setTitle("Specify IP");
+			dialog.setContentView(R.layout.ipdialog);
+			dialog.show();
+			Button b1 = (Button) dialog.findViewById(R.id.ipsubmitButton);
+			Button b2 = (Button) dialog.findViewById(R.id.ipcancelButton);
+			final EditText ipEdit = (EditText) dialog.findViewById(R.id.ipaddressET);
+			b1.setOnClickListener(new OnClickListener() {
+
+				public void onClick(View v) {
+					// TODO Auto-generated method stub
+					String ipaddrress=ipEdit.getText().toString();
+					//ipaddrress=ipaddrress;
+					myedit.putString("ipaddress", ipaddrress);
+					myedit.commit();
+					dialog.dismiss();
+				}
+			});
+			b2.setOnClickListener(new OnClickListener() {
+
+				public void onClick(View v) {
+					// TODO Auto-generated method stub
+					dialog.dismiss();
+				}
+			});
+		}
+		return true;
+	}
+	
+	
+	
+	
+	
 	@Override
 	public void onDestroy() {
 		// Don't forget to shutdown!

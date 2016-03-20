@@ -1,5 +1,6 @@
 package com.example.walkie;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -9,6 +10,7 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.os.Bundle;
+import android.util.Log;
 
 
 /**
@@ -19,6 +21,7 @@ import android.os.Bundle;
 public class GpsLocation implements LocationListener {
 
 	static double lat, log;
+	static String cityName;
 	Context context;
 	static StringBuilder strReturnedAddress = new StringBuilder("Address:\n");
 	Geocoder geocoder;
@@ -34,8 +37,49 @@ public class GpsLocation implements LocationListener {
 	 * Get updated latitude and longitude
 	 */
 	public void onLocationChanged(Location location) {
-		lat = location.getLatitude();
-		log = location.getLongitude();
+		
+		
+		
+		if (location != null) {
+			
+			
+			lat = location.getLatitude();
+			log = location.getLongitude();
+			
+	        Log.d("LOCATION CHANGED", lat + "");
+	        Log.d("LOCATION CHANGED", log + "");
+//			      
+	        
+	     
+	        /*----------to get City-Name from coordinates ------------- */
+			cityName="test"; 
+	        @SuppressWarnings("unused")
+			String LocalityName=null;
+	        @SuppressWarnings("unused")
+			String subloc=null;
+	                 
+	          
+	        try { 
+	        	List<Address>  addresses;
+	        	Log.e("inside try","Ddd");
+	        addresses = geocoder.getFromLocation(lat, log, 1);  
+	        if (addresses.size() > 0)  
+	           System.out.println(addresses.get(0).getLocality());  
+	           cityName=addresses.get(0).getLocality();  
+	            LocalityName = addresses.get(0).getAddressLine(0);
+            subloc=addresses.get(0).getSubLocality();
+
+           
+	          } catch (IOException e) {            
+	          e.printStackTrace();  
+	        } 
+	            
+	        
+
+ 
+         }
+		
+		
 		gpslocation();
 	}
 
